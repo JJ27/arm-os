@@ -9,7 +9,43 @@ SECTIONS
      *
      * XXX: I cannot make text.boot work if we link start into libpi.a 
      */
-    .text 0x8000 :  { KEEP(*(.text.boot))  *(.text*) }
+    LINK_ADDR = 0x8000;
+    .crt0_header LINK_ADDR : {
+        LONG(0xea00000c);
+
+        __hello_world_string = .;
+        LONG(0x6C6C6568);
+        LONG(0x0000006F);
+    
+        /* magic cookie for sanity checking */
+        LONG(0x12345678);
+        /* 
+         * the second word is the size of the header.  this lets us avoid changing
+         * a bunch of code as we add fields.  You should copy the entire header
+         * and just jump over it.
+         */
+        LONG(SIZEOF(.crt0_header));
+
+        /* Where we are linked at */
+        LONG(LINK_ADDR);
+        /* 
+         * total size of the binary file in bytes not including the header.
+         * NOTE: bss data is *not* in the .bin: it contains only zeros so we
+         * do not need to record them, just its size.
+         */
+        LONG(SIZEOF(.text) + SIZEOF(.data) + SIZEOF(.rodata) );        
+        /* can add stuff below and loader should still work */
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+        LONG(0x00000000);
+    }
+    .text :  { KEEP(*(.text.boot))  *(.text*) }
     .data : { *(.data*) } 
     .rodata : { *(.rodata*) }
     .bss : {
@@ -22,3 +58,4 @@ SECTIONS
         __heap_start__ = .;
     }
 }
+
