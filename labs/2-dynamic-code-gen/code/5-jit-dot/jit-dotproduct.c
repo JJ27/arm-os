@@ -66,7 +66,11 @@ vec_fn_t jit_dot(uint32_t *b, unsigned n) {
                is called)
             3. use the multiply accumulate instruction.
          */
-        todo("implement this code\n");
+        //todo("implement this code\n");
+        // cp = armv6_load_imm32(cp, a_i, ((uint32_t *)a)[i]);
+        *cp++ = armv6_ldr_off12(a_i, a, 4*i);
+        cp = armv6_load_imm32(cp, b_i, b[i]);
+        cp = armv6_mla_code(cp, sum, a_i, b_i, sum);
     }
 
     // can get rid of this by changing the last instruction.

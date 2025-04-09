@@ -4,7 +4,13 @@
 .globl PUT32_inline
 put32_inline:
 PUT32_inline:
-    asm_todo("implement this code after get32 works")
+    @asm_todo("implement this code after get32 works")
+
+    mov r2, lr
+    b PUT32_inline_helper
+
+    str r1, [r0]
+    bx lr
 
     @ put32_inline will simply return to caller since we
     @ we pass lr in r2  along with the original arguments.
@@ -26,5 +32,5 @@ GET32_inline:
     mov r1, lr
     b GET32_inline_helper
 
-    ldr r0,[r0]     @ load address held in r0 into r0
-    bx lr           @ return
+    @ldr r0,[r0]     @ load address held in r0 into r0
+    @bx lr           @ return

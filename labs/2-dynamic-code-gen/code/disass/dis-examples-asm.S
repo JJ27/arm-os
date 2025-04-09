@@ -10,6 +10,8 @@
 @ldr r0, [r0,#0]
 @mul r0, r0, r1
 
-mov r0, r1
+@mov r0, r1
 @ ldr <dst>, [<src>+#<off>]
-b 0x8024
+@b 0x8024
+
+str r1, [r0]
