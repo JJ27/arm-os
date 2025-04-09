@@ -117,5 +117,7 @@ uint64_t rpi_get_serialnum(void);
 
 // get the temperature.
 uint32_t rpi_temp_get(void) ;
+uint32_t rpi_temp_max(void);
+int rpi_set_clock_rate(uint32_t clock_id, uint32_t rate, uint32_t skip_turbo);
 
 #endif
