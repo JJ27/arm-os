@@ -1,6 +1,6 @@
 # list out the driver program source 
-PROGS := 0-dump-driver.c 
-
+#PROGS := 0-dump-driver.c 
+PROGS := read-remote.c
 # if you have auxilary files, add them here.
 COMMON_SRC :=
 
