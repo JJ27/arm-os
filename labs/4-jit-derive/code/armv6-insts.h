@@ -90,7 +90,7 @@ _Static_assert(arm_mvn_op == 0b1111, "bad num list");
 // we do not do any carries, so S = 0.
 static inline unsigned arm_add(uint8_t rd, uint8_t rs1, uint8_t rs2) {
     assert(arm_add_op == 0b0100);
-    unimplemented();
+    return (arm_AL << 28) | (arm_add_op << 21) | (rd << 12) | (rs1 << 16) | rs2;
 }
 
 // <add> of an immediate
