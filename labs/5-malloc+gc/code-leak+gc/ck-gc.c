@@ -20,7 +20,8 @@
 #include "ckalloc.h"
 #include "kr-malloc.h"
 #include "libc/helper-macros.h"
-#include "memmap.h" 
+#include "memmap.h"
+#include <stdint.h>  // For uint32_t
 
 
 // implement these five routines below.
@@ -152,47 +153,69 @@ static void mark(const char *where, uint32_t *p, uint32_t *e) {
 
     // sweep through each integer in [p,e] and mark all allocated
     // blocks the integer could point to (start, or internal)
-    //
-    // for each marked block: sweep through that too.
-    todo("implement the rest\n");
+    for(; p < e; p++) {
+        hdr_t *h = is_ptr(*p);
+        if(!h)
+            continue;
+
+        // Check if pointer points to start of block
+        void *data_start = ck_data_start(h);
+        if((void*)*p == data_start) {
+            h->refs_start++;
+        } else {
+            h->refs_middle++;
+        }
+
+        // If block wasn't marked before, mark it and scan its contents
+        if(!h->mark) {
+            h->mark = 1;
+            // Recursively scan the block's data region
+            mark(where, (uint32_t*)data_start, (uint32_t*)ck_data_end(h));
+        }
+    }
 }
 
 // do a sweep, warning about any leaks.
 static unsigned sweep_leak(int warn_no_start_ref_p) {
-	unsigned nblocks = 0, errors = 0, maybe_errors=0;
-	output("---------------------------------------------------------\n");
-	output("checking for leaks:\n");
+    unsigned nblocks = 0, errors = 0, maybe_errors = 0;
+    output("---------------------------------------------------------\n");
+    output("checking for leaks:\n");
 
     // sweep through all the allocated blocks.  
-    //  1. if there are no pointers to a block at all: give an error.
-    //  2. if there are only refs to the middle and <warn_no_start_ref_p>
-    //     is true, give a maybe leak.
-    //
-    // for definite leaks use:
-    //        ck_error(h, "GC:DEFINITE LEAK of block=%u [addr=%p]\n",
-    //                  h->block_id, ptr);
+    for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h), nblocks++) {
+        if(h->state != ALLOCED)
+            continue;
 
-    // for maybe leaks use:
-    //      ck_error(h, "GC:MAYBE LEAK of block %u [addr=%p] (no pointer to the start)\n", h->block_id, ptr);
-    //
-    for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h), nblocks++)
-        todo("implement the rest\n");
+        // If block wasn't marked, it's definitely leaked
+        if(!h->mark) {
+            void *ptr = ck_data_start(h);
+            ck_error(h, "GC:DEFINITE LEAK of block=%u [addr=%p]\n",
+                    h->block_id, ptr);
+            errors++;
+        }
+        // If block only has middle refs and warning is enabled, it's a maybe leak
+        else if(warn_no_start_ref_p && h->refs_start == 0 && h->refs_middle > 0) {
+            void *ptr = ck_data_start(h);
+            ck_error(h, "GC:MAYBE LEAK of block %u [addr=%p] (no pointer to the start)\n", 
+                    h->block_id, ptr);
+            maybe_errors++;
+        }
+    }
 
-	trace("\tGC:Checked %d blocks.\n", nblocks);
-	if(!errors && !maybe_errors)
-		trace("\t\tGC:SUCCESS: No leaks found!\n");
-	else
-		trace("\t\tGC:ERRORS: %d errors, %d maybe_errors\n", 
-						errors, maybe_errors);
-	output("----------------------------------------------------------\n");
-	return errors + maybe_errors;
+    trace("\tGC:Checked %d blocks.\n", nblocks);
+    if(!errors && !maybe_errors)
+        trace("\t\tGC:SUCCESS: No leaks found!\n");
+    else
+        trace("\t\tGC:ERRORS: %d errors, %d maybe_errors\n", 
+                errors, maybe_errors);
+    output("----------------------------------------------------------\n");
+    return errors + maybe_errors;
 }
 
 
 // a very slow leak checker.
 static void mark_all(uint32_t *sp) {
-    // slow: should not need this: remove after your code
-    // works.
+    // Initialize mark and ref counts for all blocks
     for(hdr_t *h = ck_first_alloc(); h; h = ck_next_hdr(h)) {
         h->mark = h->refs_start = h->refs_middle = 0;
     }
@@ -202,19 +225,14 @@ static void mark_all(uint32_t *sp) {
     if(ck_verbose_p)
         debug("stack has %d words\n", stack_top - sp);
 
-
-    // pointers can be on the stack, in registers, or in the heap itself.
-    // we dumped all callee-saved before calling <mark_all>, so 
-    // sweep:
-    //   1. stack
-    //   2. zero initialized data <bss> 
-    //   3. non-zero initialized data
-    // 
-    // for 2&3: see:
-    //  - <libpi/include/memmap.h>
-    //  -:<libpi/memmap>
+    // Scan stack
     mark("stack", sp, stack_top);
-    todo("sweep bss and data");
+
+    // Scan bss segment
+    mark("bss", (uint32_t*)__bss_start__, (uint32_t*)__bss_end__);
+
+    // Scan data segment
+    mark("data", (uint32_t*)__data_start__, (uint32_t*)__data_end__);
 }
 
 
@@ -222,17 +240,28 @@ static void mark_all(uint32_t *sp) {
 // block that has no references all all (nothing to start, 
 // nothing to middle).
 static unsigned sweep_free(void) {
-	unsigned nblocks = 0, nfreed=0, nbytes_freed = 0;
-	output("---------------------------------------------------------\n");
-	output("compacting:\n");
+    unsigned nblocks = 0, nfreed = 0, nbytes_freed = 0;
+    output("---------------------------------------------------------\n");
+    output("compacting:\n");
 
-    // for each free that you do print it:
-    //      trace("GC:FREEing block id=%u [addr=%p]\n", h->block_id, ptr);
+    // sweep through allocated list: free any block that has no pointers
+    hdr_t *h = ck_first_alloc();
+    while(h) {
+        nblocks++;
+        hdr_t *next = ck_next_hdr(h);  // Get next before potentially freeing h
+        
+        if(h->state == ALLOCED && !h->mark) {
+            void *ptr = ck_data_start(h);
+            trace("GC:FREEing block id=%u [addr=%p]\n", h->block_id, ptr);
+            nfreed++;
+            nbytes_freed += h->nbytes_alloc;
+            ckfree(ptr);
+        }
+        
+        h = next;
+    }
 
-    todo("sweep through allocated list: free any block that has no pointers\n");
-
-	trace("\tGC:Checked %d blocks, freed %d, %d bytes\n", nblocks, nfreed, nbytes_freed);
-
+    trace("\tGC:Checked %d blocks, freed %d, %d bytes\n", nblocks, nfreed, nbytes_freed);
     return nbytes_freed;
 }
 

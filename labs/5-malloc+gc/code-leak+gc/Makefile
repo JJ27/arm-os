@@ -12,14 +12,14 @@ PROGS := $(wildcard tests/gc-test[0-9]*.c)
 #COMMON_SRC = kr-malloc.c
 STAFF_OBJS += staff-kr-malloc.o
 
-# COMMON_SRC += ckalloc.c
-STAFF_OBJS += staff-ckalloc.o
+COMMON_SRC += ckalloc.c
+#STAFF_OBJS += staff-ckalloc.o
 
-#COMMON_SRC += ck-gc.c
-STAFF_OBJS += staff-ck-gc.o
+COMMON_SRC += ck-gc.c
+#STAFF_OBJS += staff-ck-gc.o
 
-#COMMON_SRC += gc-asm.S
-STAFF_OBJS += staff-gc-asm.o
+COMMON_SRC += gc-asm.S
+#STAFF_OBJS += staff-gc-asm.o
 
 RUN=1
 # if you get issues, try swapping this.

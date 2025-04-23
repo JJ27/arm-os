@@ -35,7 +35,9 @@ unsigned ck_ptr_in_block(hdr_t *h, void *ptr) {
     }
 
     // use ck_data_start/_end 
-    todo("check that <ptr> is in data for <h>\n");
+    void *start = ck_data_start(h);
+    void *end = ck_data_end(h);
+    return (ptr >= start && ptr < end);
 }
 
 
@@ -46,7 +48,6 @@ void (ckfree)(void *addr, src_loc_t l) {
         loc_panic(l, "freeing bogus pointer: %p\n", addr);
 
     // allocated block starts right after the header.
-
     void *blk_start = ck_data_start(h);
     if(blk_start != addr)
         loc_panic(l, "not freeing using start pointer: have %p, need %p\n",
@@ -60,8 +61,19 @@ void (ckfree)(void *addr, src_loc_t l) {
     assert(ck_ptr_is_alloced(addr));
     h->state = FREED;
 
-    // just remove from the allocated list.
-    todo("implement the rest\n");
+    // remove from the allocated list
+    hdr_t *prev = alloc_list;
+    if (prev == h) {
+        alloc_list = h->next;
+    } else {
+        while (prev && prev->next != h) {
+            prev = prev->next;
+        }
+        if (!prev) {
+            panic("block not found in allocated list\n");
+        }
+        prev->next = h->next;
+    }
 
     kr_free(h);
 }
@@ -81,10 +93,12 @@ void *(ckalloc)(uint32_t nbytes, src_loc_t l) {
     h->alloc_loc = l;
     h->block_id = block_id++;
 
-    // set addr;
-    void *addr = 0;
+    // set addr to the start of the data region
+    void *addr = ck_data_start(h);
 
-    todo("put on allocated list\n");
+    // add to allocated list
+    h->next = alloc_list;
+    alloc_list = h;
 
     assert(ck_ptr_is_alloced(addr));
     if(ck_verbose_p)
