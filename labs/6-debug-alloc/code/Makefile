@@ -6,6 +6,8 @@
 #PROGS := tests/part1-test4-bug.c
 #PROGS := tests/part1-test5-no-bug.c
 #PROGS := tests/part1-test6-bugs.c
+#PROGS := tests/part1-test7-bug.c
+#PROGS := tests/part1-test8-bug.c
 
 # all the tests.
 PROGS := $(wildcard tests/part1-test[0-9]*.c)
@@ -16,11 +18,11 @@ STAFF_OBJS += staff-kr-malloc.o
 COMMON_SRC += ckalloc.c
 #STAFF_OBJS += staff-ckalloc.o
 
-#COMMON_SRC += ck-gc.c
-STAFF_OBJS += staff-ck-gc.o
+COMMON_SRC += ck-gc.c
+#STAFF_OBJS += staff-ck-gc.o
 
-#COMMON_SRC += gc-asm.S
-STAFF_OBJS += staff-gc-asm.o
+COMMON_SRC += gc-asm.S
+#STAFF_OBJS += staff-gc-asm.o
 
 
 # define this if you need to give the device for your pi
@@ -28,6 +30,10 @@ TTYUSB =
 
 # set RUN = 1 if you want the code to automatically run after building.
 RUN = 1
+
+# add these two lines.
+LIB =  $(CS240LX_2025_PATH)/lib/libgcc.a
+LIB_POST =  $(CS240LX_2025_PATH)/lib/libgcc.a
 
 include $(CS240LX_2025_PATH)/libpi/mk/Makefile.robust-v2
 
