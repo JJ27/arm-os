@@ -6,7 +6,6 @@
 // <addr> and return the result.
 static uint8_t i2c_get_reg(uint8_t addr, uint8_t reg) {
     i2c_write(addr, &reg, 1);
-
     uint8_t v;
     i2c_read(addr,  &v, 1);
     return v;

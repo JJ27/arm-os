@@ -1,97 +1,144 @@
-/*
- * simplified i2c implementation --- no dma, no interrupts. should 
- * probobaly add both.  
- *
- * the pi's we use can only access i2c1 (gpio pins 2,3) so we hardwire 
- * everything in.
- *
- * datasheet starts at p28 in the broadcom pdf.
- *
- * make sure you use device barriers at the start and end!  we don't
- * know what else the client code was doing.
- */
 #include "rpi.h"
 #include "libc/helper-macros.h"
 #include "i2c.h"
+#include "gpio.h"
+#include <stdint.h>
 
-// example of using a structure to control a device.  
-// note:
-//   1. the use of static asserts to check offsets.
-//   2. we don't use bitfields here, and only read/write
-//      using 32 values. p28: "All accesses are assumed to 
-//      be 32-bit"
-//   3. probably should have just stuck with enums, but
-//      the starter code was already out, so :)
 typedef struct {
-	uint32_t control; // "C" register, p29
-	uint32_t status;  // "S" register, p31
+    uint32_t c;
+    uint32_t s;
+    uint32_t dlen;
+    uint32_t a;
+    uint32_t fifo;
+} i2c_t;
 
-#	define check_dlen(x) assert(((x) >> 16) == 0)
-	uint32_t dlen; 	// p32. number of bytes to xmit, recv
-					// reading from dlen when TA=1
-					// or DONE=1 returns bytes still
-					// to recv/xmit.  
-					// reading when TA=0 and DONE=0
-					// returns the last DLEN written.
-					// can be left over multiple pkts.
+static i2c_t *i2c = (i2c_t *)0x20804000;
 
-    // Today address's should be 7 bits.
-#	define check_dev_addr(x) assert(((x) >> 7) == 0)
-	uint32_t 	dev_addr;   // "A" register, p 33, device addr 
+// GPIO pins
+#define SDA_PIN 2
+#define SCL_PIN 3
 
-	uint32_t fifo;  // p33: only use the lower 8 bits.
-#	define check_clock_div(x) assert(((x) >> 16) == 0)
-	uint32_t clock_div;     // p34
-	// we aren't going to use this: fun to mess w/ tho.
-	uint32_t clock_delay;   // p34
-	uint32_t clock_stretch_timeout;     // broken on pi.
-} RPI_i2c_t;
-
-// offsets from table "i2c address map" p 28
-_Static_assert(offsetof(RPI_i2c_t, control) == 0, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, status) == 0x4, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, dlen) == 0x8, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, dev_addr) == 0xc, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, fifo) == 0x10, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, clock_div) == 0x14, "wrong offset");
-_Static_assert(offsetof(RPI_i2c_t, clock_delay) == 0x18, "wrong offset");
-
-/*
- * There are three BSC masters inside BCM. The register addresses starts from
- *	 BSC0: 0x7E20_5000 (0x20205000)
- *	 BSC1: 0x7E80_4000
- *	 BSC2 : 0x7E80_5000 (0x20805000)
- * the PI can only use BSC1.
- */
-static volatile RPI_i2c_t *i2c = (void*)0x20804000; 	// BSC1
-
-// write <nbytes> of data from input array <data> to device <addr>.
-//
-// should extend so this can fail.
-int i2c_write(unsigned addr, uint8_t data[], unsigned nbytes) {
-    todo("implement");
-	return 1;
-}
-
-// read <nbytes> of data from device <addr> and write it into 
-// output array <data>
-//
-// should extend so it returns failure.
-int i2c_read(unsigned addr, uint8_t data[], unsigned nbytes) {
-    todo("implement");
-	return 1;
-}
-
-// initialize the i2c hardware to default speed.
-//
-// notes:
-//  - make sure you setup the GPIO pins to enable i2c.
-//  - uses a clock divider of 0.
 void i2c_init(void) {
-    todo("setup GPIO, setup i2c, sanity check results");
+    // Set GPIO pins 2 and 3 to ALT0
+    gpio_set_function(SDA_PIN, GPIO_FUNC_ALT0);
+    gpio_set_function(SCL_PIN, GPIO_FUNC_ALT0);
+    dev_barrier();
+    gpio_set_pullup(SDA_PIN);
+    gpio_set_pullup(SCL_PIN);
+
+    // Enable I2C + clear fifo
+    i2c->c = (1 << 15) | (1 << 4);
+    dev_barrier();
+
+    // Clear s
+    i2c->s = 0;
+    dev_barrier();
+
+    // Wait for transfer to complete and check for errors
+    //while (i2c->s & (1 << 0)) { }  // wait for done?? idk
+    if (i2c->s & ((1 << 8) | (1 << 9) | (1 << 10))) {  // Check initialization
+        panic("I2C initialization failed\n");
+    }
+    dev_barrier();
 }
 
-// shortest will be 130 for i2c accel.
-void i2c_init_clk_div(unsigned clk_div) {
-    todo("same as init but set the clock divider");
+int i2c_read(unsigned addr, uint8_t data[], unsigned nbytes) {
+    //output("read start\n");
+    while (i2c->s & (1 << 0)) { } // transfer active??
+    dev_barrier();
+
+    i2c->c |= ((1 << 4) | (1 << 5));
+
+    // Check fifo empty + no clock stretch timeout + no errors
+    if (i2c->s & ((1 << 8) | (1 << 9) | (1 << 10))) {
+        return -1;  // Error!
+    }
+
+    // Clear DONE field
+    i2c->s = (1 << 1);
+    dev_barrier();
+
+    // Set addr + dlen
+    i2c->a = addr;
+    i2c->dlen = nbytes;
+    dev_barrier();
+
+    // Start transfer via read
+    i2c->c = (1 << 15) | (1 << 7) | (1 << 0);  // I2CEN = 1, READ = 1, START = 1
+    dev_barrier();
+
+    // Wait for transfer initialization
+    //while (!(i2c->s & (1 << 0))) { }
+    dev_barrier();
+
+    // Read bytes
+    for (unsigned i = 0; i < nbytes; i++) {
+        // Wait for data available
+        while (!(i2c->s & (1 << 5))) { }
+        data[i] = i2c->fifo;
+        dev_barrier();
+    }
+
+    // Wait for transfer to finish itself
+    while (i2c->s & (1 << 0)) { }
+    dev_barrier();
+
+    // Check errors
+    if (i2c->s & ((1 << 8) | (1 << 9) | (1 << 10))) {
+        return -1;
+    }
+    //output("read end\n");
+
+    return 0;
 }
+
+int i2c_write(unsigned addr, uint8_t data[], unsigned nbytes) {
+    //output("write start\n");
+    while (i2c->s & (1 << 0)) { } // check transfer active?
+   
+    dev_barrier();
+
+    i2c->c |= ((1 << 4) | (1 << 5));
+
+    if (i2c->s & ((1 << 8) | (1 << 9) | (1 << 10))) {
+        return -1;  // Error
+    }
+
+    // Clear DONE
+    i2c->s = (1 << 0);
+    dev_barrier();
+    //output("write end\n");
+
+    // Set addr + dlen
+    i2c->a = addr;
+    i2c->dlen = nbytes;
+    dev_barrier();
+
+    // Start transfer via write
+    i2c->c = (1 << 15) | (1 << 7);  // I2CEN = 1, START = 1
+    dev_barrier();
+
+    // Wait for transfer initialization
+    //while (!(i2c->s & (1 << 0))) { }
+    
+    dev_barrier();
+
+    // Write bytes
+    for (unsigned i = 0; i < nbytes; i++) {
+        // Wait for FIFO space
+        while (!(i2c->s & (1 << 4))) { }  // Check FIFO full
+        i2c->fifo = data[i];
+        dev_barrier();
+    }
+
+    // Wait for transfer to finish itself
+    while (i2c->s & (1 << 0)) { }
+    dev_barrier();
+
+    if (i2c->s & ((1 << 8) | (1 << 9) | (1 << 10))) {
+        return -1;
+    }
+
+    return 0;
+}
+
