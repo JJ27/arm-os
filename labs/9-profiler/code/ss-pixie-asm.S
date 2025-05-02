@@ -158,16 +158,19 @@ MK_FN(pixie_switchto_super_asm)
 @  - pass the pc as the first argument to <fn> 
 @    and call it.
 @
-// keep the name of the trampoline private.
 #define MK_TRAMPOLINE(name, offset, fn)     \
     name:                                   \
+        mrc p15, 0, sp, c15, c12, 1;        \
+        mcr p15, 0, sp, c13, c0, 2;        \
         sub   lr, lr, #(offset);            \
         mov sp, #INT_STACK_ADDR;            \
         push  {r0-r12,lr};                  \
         mov   r0, lr;                       \
         bl    fn;                           \
         pop   {r0-r12,lr};                  \
-        movs    pc, lr 
+        mrc p15, 0, sp, c15, c12, 1;        \
+        mcr p15, 0, sp, c13, c0, 3;        \
+        movs    pc, lr
 
 @ call the default handlers and blow up.  override if you
 @ want to do something fancier.

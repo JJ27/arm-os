@@ -3,7 +3,7 @@
 #include "ss-pixie.h"
 
 void notmain(void) {
-    // caches_enable();     // Q: what happens if you enable cache?
+    //caches_enable();     // Q: what happens if you enable cache?
 
     pixie_verbose(0);
     pixie_start();
