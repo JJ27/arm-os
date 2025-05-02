@@ -4,6 +4,16 @@
 #include "i2c.h"
 #include "bit-support.h"
 #include <limits.h>
+#include <stdint.h>
+
+// Register definitions
+enum {
+    GYRO_CONFIG = 0x1B,  // Gyroscope configuration register (p14)
+    ACCEL_CONFIG = 0x1C, // Accelerometer configuration register
+    SELF_TEST_X = 0x0D,  // Self-test factory trim value for X axis (p6)
+    SELF_TEST_Y = 0x0E,  // Self-test factory trim value for Y axis (p6)
+    SELF_TEST_Z = 0x0F,  // Self-test factory trim value for Z axis (p6)
+};
 
 // both gyro and accel return x,y,z readings: it makes things
 // a bit simpler to bundle these together.

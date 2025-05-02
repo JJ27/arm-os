@@ -19,4 +19,6 @@ LGCC ?= $(CS240LX_2025_PATH)/lib/libgcc.a
 
 LIBS += $(LGCC)
 LIB_POST := $(LGCC)
+LIBS += $(LIBM)
+CFLAGS += $(LIBM_INC)
 include $(CS240LX_2025_PATH)/libpi/mk/Makefile.robust-v2

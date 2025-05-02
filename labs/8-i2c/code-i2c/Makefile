@@ -26,4 +26,6 @@ RUN=1
 
 LIBS += $(LGCC)
 LIB_POST := $(LGCC)
+LIBS += $(LIBM)
+CFLAGS += $(LIBM_INC)
 include ../../../libpi/mk/Makefile.robust-v2

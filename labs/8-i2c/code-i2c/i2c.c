@@ -4,7 +4,7 @@
 #include "gpio.h"
 #include <stdint.h>
 
-typedef struct {
+volatile typedef struct {
     uint32_t c;
     uint32_t s;
     uint32_t dlen;

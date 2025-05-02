@@ -272,7 +272,7 @@ enum {
     // p13, p6
     CONFIG = 26, 
     // p14, p6
-    GYRO_CONFIG = 27, 
+    //GYRO_CONFIG = 27, 
 
     // p7
     GYRO_XOUT_H = 67,

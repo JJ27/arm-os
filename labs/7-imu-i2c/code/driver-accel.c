@@ -28,6 +28,69 @@
 // to re-use the code.
 #include "rpi.h"
 #include "mpu-6050.h"
+#include "rpi-math.h"
+
+int accel_self_test(uint8_t dev_addr) {
+    imu_wr(dev_addr, ACCEL_CONFIG, accel_8g << 3);
+    delay_ms(100);
+
+    imu_xyz_t normal_readings = {0};
+    for(int i = 0; i < 20; i++) {  // Discard first 20 readings
+        normal_readings = accel_rd((accel_t*)&dev_addr);
+        delay_ms(10);
+    }
+
+    imu_wr(dev_addr, ACCEL_CONFIG, (accel_8g << 3) | 0b11100000);
+    delay_ms(250);
+
+    imu_xyz_t self_test_readings = {0};
+    for(int i = 0; i < 20; i++) {  // Discard first 20 readings
+        self_test_readings = accel_rd((accel_t*)&dev_addr);
+        delay_ms(10);
+    }
+
+    // Calculate STR (Self-Test Response) = self_test_readings - normal_readings
+    imu_xyz_t str = {
+        .x = self_test_readings.x - normal_readings.x,
+        .y = self_test_readings.y - normal_readings.y,
+        .z = self_test_readings.z - normal_readings.z
+    };
+
+
+    uint8_t xa_upper = (imu_rd(dev_addr, SELF_TEST_X) & 0b11100000) >> 3;
+    uint8_t ya_upper = (imu_rd(dev_addr, SELF_TEST_Y) & 0b11100000) >> 3;
+    uint8_t za_upper = (imu_rd(dev_addr, SELF_TEST_Z) & 0b11100000) >> 3;
+
+    uint8_t xa_lower = (imu_rd(dev_addr, 16) & 0b110000) >> 4;
+    uint8_t ya_lower = (imu_rd(dev_addr, 16) & 0b1100) >> 2;
+    uint8_t za_lower = (imu_rd(dev_addr, 16) & 0b11);
+
+    uint8_t xa_test = xa_upper | xa_lower;
+    uint8_t ya_test = ya_upper | ya_lower;
+    uint8_t za_test = za_upper | za_lower;
+
+    float ft_x = xa_test == 0 ? 0 : 4096.0f * 0.34f * powf(0.92f/0.34f, (xa_test - 1.0f)/(32.0f - 2.0f));
+    float ft_y = ya_test == 0 ? 0 : 4096.0f * 0.34f * powf(0.92f/0.34f, (ya_test - 1.0f)/(32.0f - 2.0f));
+    float ft_z = za_test == 0 ? 0 : 4096.0f * 0.34f * powf(0.92f/0.34f, (za_test - 1.0f)/(32.0f - 2.0f));
+    float x_diff = fabsf((str.x - ft_x) / ft_x) * 100.0f;
+    float y_diff = fabsf((str.y - ft_y) / ft_y) * 100.0f;
+    float z_diff = fabsf((str.z - ft_z) / ft_z) * 100.0f;
+
+    printk("Xa,ya,za test: %d, %d, %d\n", xa_test, ya_test, za_test);
+
+    printk("Accel self-test results:\n");
+    printk("X: STR=%d, FT=%f, diff=%f\n", str.x, ft_x, x_diff);
+    printk("Y: STR=%d, FT=%f, diff=%f\n", str.y, ft_y, y_diff);
+    printk("Z: STR=%d, FT=%f, diff=%f\n", str.z, ft_z, z_diff);
+
+    int pass = (x_diff <= 14.0f) && (y_diff <= 14.0f) && (z_diff <= 14.0f);
+    printk("Accel self-test %s\n", pass ? "PASSED" : "FAILED");
+
+    imu_wr(dev_addr, ACCEL_CONFIG, accel_8g << 3);
+    delay_ms(100);
+
+    return pass;
+}
 
 // derive accel samples per second: do N readings and divide by the 
 // time it took.
@@ -74,6 +137,15 @@ void notmain(void) {
 
     // initialize.
     accel_t h = mpu6050_accel_init(dev_addr, accel_2g);
+    assert(h.g==2);
+    
+    // Perform accelerometer self-test
+    if (!accel_self_test(dev_addr)) {
+        panic("Accelerometer self-test failed!\n");
+    }
+
+    // Re-initialize after self-test
+    h = mpu6050_accel_init(dev_addr, accel_2g);
     assert(h.g==2);
     
     // if you want to compute samples per second.

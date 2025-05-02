@@ -1,7 +1,7 @@
 # double check that everything works and then swap 
 # these so it uses your sw-i2c.c
-# COMMON_SRC = sw-i2c.c 
-STAFF_OBJS += staff-sw-i2c.o 
+COMMON_SRC = sw-i2c.c 
+#STAFF_OBJS += staff-sw-i2c.o 
 
 # a vaneer to let the big banged work with code
 # that assumes the hardware interface.
@@ -11,7 +11,7 @@ COMMON_SRC += sw-i2c-vaneer.c
 IMU_DIR := ../../7-imu-i2c/code/
 PROGS = $(IMU_DIR)/driver-gyro.c
 
-PROGS = $(IMU_DIR)/driver-accel.c
+#PROGS = $(IMU_DIR)/driver-accel.c
 
 # when done, should use yours.
 # pick either yours or ours.
