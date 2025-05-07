@@ -26,10 +26,12 @@ MK_FN(pixie_switchto_user_asm)
     mov r1, sp
     mov r2, lr
 
+    mrc p15, 0, r4, c15, c12, 1;
+    mcr p15, 0, r4, c13, c0, 3;
+
     @ get original cpsr so can return it.
     @ r3 is caller-saved.
     mrs r3, cpsr 
-
     @ switch to user mode
     cps #USER_MODE
     @ required before mode switch guaranteed
