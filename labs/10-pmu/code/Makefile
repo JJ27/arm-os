@@ -1,8 +1,10 @@
 # very simple tests. start here.
-
-PROGS := 2-pmu-test.c
-PROGS := 1-pmu-test.c
-PROGS := 0-pmu-test.c
+#PROGS := icache-test.c
+PROGS := wb-test.c
+#PROGS := prefetch-test.c
+#PROGS += 2-pmu-test.c
+#PROGS += 1-pmu-test.c
+#PROGS += 0-pmu-test.c
 
 COMMON_SRC := measure-fns.c
 COMMON_SRC += measure-asm.S
