@@ -1,5 +1,7 @@
 #include "rpi.h"
 #include "memtrace.h"
+#include "sbrk-trap.h"
+#include <stdint.h>
 
 #include "watchpoint.h"
 
@@ -12,7 +14,13 @@
 // (caller,callee and cpsr).
 #include "switchto.h"
 
-#include "sbrk-trap.h"
+// Global state for the memory tracing system
+static struct {
+    void *data;              
+    memtrace_fn_t pre;      
+    memtrace_fn_t post;      
+    unsigned trap_dom;      
+} memtrace_state;
 
 // 1 = we expect a domain fault.
 // 0 = we expect a or a watchpoint fault.
@@ -25,22 +33,24 @@ static memtrace_fn_t pre;
 static memtrace_fn_t post;
 static void *data;
 
-static int quiet_p = 0;
+static int quiet_p = 1;
 void memtrace_yap_off(void) { quiet_p = 1; }
 void memtrace_yap_on(void)  { quiet_p = 0; }
 
 // pre-computed domain register values.
-static uint32_t trap_access = 0;
-static uint32_t no_trap_access = 0;
+static uint32_t trap_access;
+static uint32_t no_trap_access;
 
 static int trap_is_on_p(void) {
-    todo("return 1 if trapping on: use domain_access_ctrl_get");
+    return domain_access_ctrl_get() == trap_access;
 }
+
 static void trap_on(void) {
-    todo("turn trapping on: use domain_access_ctrl_set");
+    domain_access_ctrl_set(trap_access);
 }
+
 static void trap_off(void) {
-    todo("turn trapping off: use domain_access_ctrl_set");
+    domain_access_ctrl_set(no_trap_access);
 }
 
 // turn memtracing on: wrapper with extra error checking.
@@ -73,9 +83,35 @@ static void data_fault(regs_t *r) {
     if(mode_get(r->regs[16]) != SUPER_MODE)
         panic("got a fault not at SUPER level?\n");
 
-    // after a domain fault: call <pre>.  
-    // after a watchpoint fault: call <post>.
-    todo("handle the fault!");
+    if (trap_is_on_p()) {
+        uint32_t addr = data_abort_addr();
+        memtrace_trap_disable();
+        uint32_t pc = r->regs[15];
+
+        watchpt_on_ptr((uint32_t *)addr);
+
+        fault_ctx_t ctx = fault_ctx_mk(r, addr, inst_nbytes(0), 0);
+
+        if (pre) {
+            if (!quiet_p)
+                output("memtrace: pre-handler: pc=%x, addr=%x\n", pc, addr);
+            pre(data, &ctx);
+        }
+    } else {
+        uint32_t addr = watchpt_fault_addr();
+        watchpt_off_ptr((uint32_t *)addr);
+        int load_p = watchpt_load_fault_p();
+        uint32_t pc = r->regs[15];
+        fault_ctx_t ctx = fault_ctx_mk(r, addr, inst_nbytes(0), load_p);
+
+        if (post) {
+            if (!quiet_p)
+                output("memtrace: post-handler: pc=%x, addr=%x\n", pc, addr);
+            post(data, &ctx);
+        }
+
+        memtrace_trap_enable();
+    }
 
     // drain printk to avoid the "can tx" race in UART.
     while(!uart_can_put8())
@@ -104,7 +140,8 @@ void memtrace_init(
     data = data_h;
     assert(trap_dom < 16);
 
-    todo("do any additional setup you need");
+    trap_access = 4;
+    no_trap_access = 4 | (1 << (trap_dom*2));
 
     // XXX: what's the right way to handle SS exceptions at the same time?
     full_except_install(0);

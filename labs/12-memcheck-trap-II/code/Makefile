@@ -4,12 +4,12 @@ PROGS += tests-memtrace/1-test-multi-faults.c
 
 # simple purify tests
 PROGS := tests-purify/1-purify-bug.c
-PROGS := tests-purify/2-purify-bug.c
-PROGS := tests-purify/3-purify-free-bug.c
-PROGS := tests-purify/4-purify-bug.c
-PROGS := tests-purify/5-purify-no-bug.c
-PROGS := tests-purify/6-purify-no-bug-slow.c
-PROGS := $(wildcard tests-purify/[0123456]-purify-*.c)
+#PROGS := tests-purify/2-purify-bug.c
+#PROGS := tests-purify/3-purify-free-bug.c
+#PROGS := tests-purify/4-purify-bug.c
+#PROGS := tests-purify/5-purify-no-bug.c
+#PROGS := tests-purify/6-purify-no-bug-slow.c
+#PROGS := $(wildcard tests-purify/[0123456]-purify-*.c)
 
 # run all tests
 PROGS := $(wildcard tests-purify/[0123456]-purify-*.c)
@@ -21,16 +21,16 @@ COMMON_SRC += memmap-default.c
 COMMON_SRC += sbrk-trap.c
 
 # part 1: switch
-# COMMON_SRC += memtrace.c
-STAFF_OBJS += staff-memtrace.o
+COMMON_SRC += memtrace.c
+#STAFF_OBJS += staff-memtrace.o
 
 # part 2: switch
-# COMMON_SRC += checker-purify.c
-STAFF_OBJS += staff-checker-purify.o
+COMMON_SRC += checker-purify.c
+#STAFF_OBJS += staff-checker-purify.o
 
 # part 3: switch
-# COMMON_SRC += staff-ckalloc.c
-STAFF_OBJS += staff-ckalloc.o
+ COMMON_SRC += ckalloc.c
+#STAFF_OBJS += staff-ckalloc.o
 
 INC += -I./includes
 
