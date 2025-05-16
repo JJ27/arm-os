@@ -85,17 +85,16 @@
 //      delays to the lowest that seem to consistently work.  for a long
 //      light strip this can add up.
 enum { 
-#   error "you need to define these enums using the datasheet."
 
         // to send a 1: set pin high for T1H ns, then low for T0H ns.
-        T1H = ns_to_cycles(0),        // Width of a 1 bit in cycles
-        T0H = ns_to_cycles(0),        // Width of a 0 bit in cycles
+        T1H = ns_to_cycles(900),        // Width of a 1 bit in cycles (0.9us)
+        T0H = ns_to_cycles(350),        // Width of a 0 bit in cycles (0.35us)
         // to send a 0: set pin high for T1L ns, then low for T0L ns.
-        T1L = ns_to_cycles(0),        // Width of a 1 bit in cycles
-        T0L = ns_to_cycles(0),        // Width of a 0 bit in cycles
+        T1L = ns_to_cycles(350),        // Width of a 1 bit in cycles (0.35us)
+        T0L = ns_to_cycles(900),        // Width of a 0 bit in cycles (0.9us)
 
         // to make the LED switch to the new values, old the pin low for FLUSH ns
-        FLUSH = ns_to_cycles(50 *1000)    // how long to hold low to flush
+        FLUSH = ns_to_cycles(50000)    // how long to hold low to flush (50us)
 };
 
 /****************************************************************************
@@ -117,15 +116,22 @@ enum {
 // reduce overhead. they have to run in < the delay we are 
 // shooting for.
 static inline void gpio_set_on_raw(unsigned pin) {
-    todo("write this code");
+    volatile unsigned *gpio_set = (volatile unsigned *)0x2020001C;  // GPIO set register
+    *gpio_set = (1 << pin);
 }
+
 static inline void gpio_set_off_raw(unsigned pin) {
-    todo("write this code");
+    volatile unsigned *gpio_clr = (volatile unsigned *)0x20200028;  // GPIO clear register
+    *gpio_clr = (1 << pin);
 }
 
 // use cycle_cnt_read() to delay <n_cyc> cycles measured from <start_cyc>
 static inline void delay_ncycles(unsigned start_cyc, unsigned n_cyc) {
-    todo("write this code");
+    unsigned end_cyc = start_cyc + n_cyc;
+    uint32_t out;
+    do {
+        asm volatile("MRC p15, 0, %0, c15, c12, 1" : "=r"(out));
+    } while(out < end_cyc);
 }
 
 /****************************************************************************
@@ -141,42 +147,46 @@ static inline void delay_ncycles(unsigned start_cyc, unsigned n_cyc) {
 // write 1 for <ncycles>: since reading the cycle counter itself takes cycles
 // you may need to add a constant to correct for this.
 static inline void write_1(unsigned pin, unsigned ncycles) {
-    todo("use gpio_set_on_raw to write 1 for <ncycles>");
+    unsigned start = cycle_cnt_read();
+    gpio_set_on_raw(pin);
+    delay_ncycles(start, ncycles - 15);
 }
 
 // write 0 for <ncycles>: since reading the cycle counter takes cycles you
 // may need to add a constant to correct for it.
 static inline void write_0(unsigned pin, unsigned ncycles) {
-    todo("use gpio_set_off_raw to write 0 for <ncycles>");
+    unsigned start = cycle_cnt_read();
+    gpio_set_off_raw(pin);
+    delay_ncycles(start, ncycles - 15);
 }
 
 // implement T1H from the datasheet 
 //   (H=high, so call write_1 with the right delay)
 static inline void t1h(unsigned pin) {
-    unimplemented();
+    write_1(pin, T1H);
 }
 
 // implement T0H from the datasheet 
 //   (H=high, so call write_1 with the right delay)
 static inline void t0h(unsigned pin) {
-    unimplemented();
+    write_1(pin, T0H);
 }
 
 // implement T1L from the datasheet. 
 //   (L=low, so call write_0 with the right delay)
 static inline void t1l(unsigned pin) {
-    unimplemented();
+    write_0(pin, T1L);
 }
 
 // implement T0L from the datasheed.
 //   (L=low, so call write_0 with the right delay)
 static inline void t0l(unsigned pin) {
-    unimplemented();
+    write_0(pin, T0L);
 }
 
 // implement RESET from the datasheet.
 static inline void treset(unsigned pin) {
-    unimplemented();
+    write_0(pin, FLUSH);
 }
 
 /***********************************************************************************
@@ -192,7 +202,13 @@ static inline void pix_flush(unsigned pin) {
 
 // transmit a {0,1} bit to the ws2812b
 static inline void pix_sendbit(unsigned pin, uint8_t b) {
-    unimplemented();
+    if(b) {
+        t1h(pin);
+        t1l(pin);
+    } else {
+        t0h(pin);
+        t0l(pin);
+    }
 }
 
 // use pix_sendbit to send byte <b>
@@ -201,7 +217,10 @@ static inline void pix_sendbit(unsigned pin, uint8_t b) {
 // the inlining it becomes huge: unclear if better.  if you decide to 
 // inline it, make sure you run tests before and after.  
 static void pix_sendbyte(unsigned pin, uint8_t b) {
-    unimplemented();
+    // Send MSB first
+    for(int i = 7; i >= 0; i--) {
+        pix_sendbit(pin, (b >> i) & 1);
+    }
 }
 
 // use pix_sendbyte to send bytes [<r> red, <g> green, <b> blue] out 
@@ -212,7 +231,10 @@ static void pix_sendbyte(unsigned pin, uint8_t b) {
 // push them).  when you optimize it's possible you need to trim the delays
 // you use. 
 static inline void pix_sendpixel(unsigned pin, uint8_t r, uint8_t g, uint8_t b) {
-    unimplemented();
+    // Note: WS2812B expects GRB order
+    pix_sendbyte(pin, g);
+    pix_sendbyte(pin, r);
+    pix_sendbyte(pin, b);
 }
 
 // make sure we allow these routines in client code!
