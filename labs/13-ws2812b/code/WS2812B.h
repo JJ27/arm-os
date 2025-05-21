@@ -197,7 +197,8 @@ static inline void treset(unsigned pin) {
 
 // flush out the pixels.
 static inline void pix_flush(unsigned pin) { 
-    treset(pin); 
+    treset(pin);
+    gpio_set_off_raw(pin);
 }
 
 // transmit a {0,1} bit to the ws2812b

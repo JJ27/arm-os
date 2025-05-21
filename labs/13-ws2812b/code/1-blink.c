@@ -30,6 +30,7 @@ void notmain(void) {
 
         output("setting off\n");
         pix_sendpixel(pix_pin, 0,0,0);
+        pix_sendpixel(pix_pin, 0, 0,0);
         pix_flush(pix_pin);
         delay_ms(1000);
     }

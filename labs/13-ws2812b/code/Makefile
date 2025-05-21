@@ -1,9 +1,14 @@
 # do this last.
-PROGS = 2-neopix.c 
+#PROGS = 2-neopix.c 
 # do this second:
-PROGS = 1-blink.c  
+#PROGS = 1-blink.c  
 # do this first.
-#PROGS = 0-timing-check.c 
+PROGS = 0-timing-check.c 
+
+
+PROGS = 3-music.c
+
+#PROGS = 1-rgb.c
 
 # if you want to use our code for <2-neopix.c>, 
 # swap these

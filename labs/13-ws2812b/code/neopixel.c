@@ -43,7 +43,7 @@ neo_t neopix_init(uint8_t pin, unsigned npixel) {
 
 // write the pixel out with [r,g,b] using <WS2812b.h>
 void neopix_sendpixel(neo_t h, uint8_t r, uint8_t g, uint8_t b) {
-    todo("transmit [r,g,b]");
+    pix_sendpixel(h->pin, r, g, b);
 }
 
 // do the work:
@@ -51,7 +51,11 @@ void neopix_sendpixel(neo_t h, uint8_t r, uint8_t g, uint8_t b) {
 //  2. then flush.  
 //  3. memset the array to 0 after.
 void neopix_flush(neo_t h) { 
-    todo("treset");
+    for (int i = 0; i < h->npixel; i++) {
+        neopix_sendpixel(h, h->pixels[i].r, h->pixels[i].g, h->pixels[i].b);
+    }
+    pix_flush(h->pin);
+    memset(h->pixels, 0, h->npixel * sizeof(struct neo_pixel));
 }
 
 // set pixel <pos> in <h> to {r,g,b}
@@ -59,7 +63,9 @@ void neopix_write(neo_t h, uint32_t pos, uint8_t r, uint8_t g, uint8_t b) {
     // silently clip
     if(pos >= h->npixel)
         return;
-    todo("append [r,g,b] to h->pixels");
+    h->pixels[pos].r = r;
+    h->pixels[pos].g = g;
+    h->pixels[pos].b = b;
 }
 
 // we give this. 
