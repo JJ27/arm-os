@@ -2,6 +2,7 @@
 #include "stepper.h"
 #include "stepper-int.h"
 #include "math-helpers.h"
+#include "stepper-music.h"
 
 // stepper pins
 #define DIR 21
@@ -68,10 +69,14 @@ void test_stepper_with_interrupts(){
 void notmain(){
     uart_init();
     printk("Stepper: starting\n");
+    kmalloc_init(1024);
 
     test_stepper();
 
     test_stepper_with_interrupts();
+
+    //stepper_int_t * stepper = stepper_init_with_int(DIR, STEP);
+    //play_national_anthem(stepper);
 
     printk("Done!\n");
     clean_reboot();
