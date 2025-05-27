@@ -50,13 +50,13 @@ void verify_elf(elf32_header *e_header) {
 // Refer to 1-4, 1-9, 1-10, and 1-13
 void bss_zero_init(elf32_header *e_header) {
     // section header table
-    elf32_sheader *e_sheaders = (elf32_sheader *)((char *)e_header->e_shoff);
+    char *elf32_base = (char *)e_header;
+    elf32_sheader *e_sheaders = (elf32_sheader *)(elf32_base + e_header->e_shoff);
     
     // Find .bss section
     for (int i = 0; i < e_header->e_shnum; i++) {
-
         if (e_sheaders[i].sh_type == SHT_NOBITS) {
-            char *bss_start = (char *)e_sheaders[i].sh_offset;
+            char *bss_start = elf32_base + e_sheaders[i].sh_addr;
             char *bss_end = bss_start + e_sheaders[i].sh_size;
             memset(bss_start, 0, bss_end - bss_start);
             printk("[MY-ELF] BSS section zero-initialized (%x - %x)\n", bss_start, bss_end);
@@ -73,7 +73,8 @@ void jump_to_elf_entry(elf32_header *e_header) {
 
     // Branch to the entry point
     printk("[MY-ELF] Branching to the entry point\n");
-    void (*entry)() = (void (*)())entry_point;
-    entry();
+    // void (*entry)() = (void (*)())entry_point;
+    // entry();
+    BRANCHTO(entry_point);
     panic("[MY-ELF] Shouldn't reach here!\n");
 }

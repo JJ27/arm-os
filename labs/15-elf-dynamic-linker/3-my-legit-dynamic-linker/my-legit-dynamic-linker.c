@@ -31,7 +31,7 @@ uint32_t dynamic_linker_entry_c(uint32_t *gotplt, uint32_t *gotplt_entry) {
     // Calculate the index of the unresolved symbol in .got.plt
     // gotplt_entry points to GOT[i+3], and gotplt points to GOT[2]
     // So the index is (gotplt_entry - gotplt - 3)
-    int symbol_index = gotplt_entry - gotplt - 3;
+    int symbol_index = gotplt_entry - gotplt - 1;
 
     // Find the relocation entry in .rel.dyn section
     // The relocation entry's INFO field contains the symbol index in .dynsym

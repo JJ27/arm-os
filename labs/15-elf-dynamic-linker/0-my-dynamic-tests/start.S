@@ -13,5 +13,7 @@ _start:
 
     mov sp, #STACK_ADDR   @ initialize stack pointer
     mov fp, #0            @ clear frame pointer reg.  don't think needed.
-    bl _cstart            @ call our code to do initialization.
+    @ bl _cstart            @ call our code to do initialization.
+    ldr r0, =_cstart      @ load address of _cstart from GOT
+    blx r0                @ call _cstart through PLT
     bl rpi_reboot         @ if they return just reboot.

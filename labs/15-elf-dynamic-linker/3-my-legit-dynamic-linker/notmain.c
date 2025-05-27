@@ -1,5 +1,6 @@
 #include "rpi.h"
 #include "my-legit-dynamic-linker.h"
+#include <stdint.h>
 
 // Change this to the filename of the dynamically linked ELF file you want to load
 static char *exec_filename = "0-DYN.ELF";
