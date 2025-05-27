@@ -102,44 +102,38 @@ uint32_t hex_recip(float value)
     return pun.i;
 }
 
-int gpu_prepare(
-	volatile struct GPU **gpu)
+void gpu_prepare(
+    volatile struct GPU **gpu)
 {
-	uint32_t handle, vc;
-	volatile struct GPU *ptr;
+    uint32_t handle, vc;
+    volatile struct GPU *ptr;
 
-	/* TURN ON THE QPU */
-	if (qpu_enable(1))
-		panic("Failed to enable GPU");
+    if (qpu_enable(1))
+        panic("Failed to enable GPU");
 
-	/* ALLOCATE MEMORY FOR THE STRUCT QPU */
-	handle = mem_alloc(sizeof(struct GPU), 4096, GPU_MEM_FLG);
-	if (!handle)
-	{
-		qpu_enable(0);
-		panic("Failed to allocate GPU memory");
-	}
+    handle = mem_alloc(sizeof(struct GPU), 4096, GPU_MEM_FLG);
+    if (!handle)
+    {
+        qpu_enable(0);
+        panic("Failed to allocate GPU memory");
+    }
+    vc = mem_lock(handle);
 
-	/* CLAIM THE BUS ADDRESS OF THE MEMORY */
-	vc = mem_lock(handle);
+    ptr = (volatile struct GPU *)(vc - 0x40000000);
+    if (ptr == NULL)
+    {
+        mem_free(handle);
+        mem_unlock(handle);
+        qpu_enable(0);
+        panic("Failed to convert handle to GPU bus address");
+    }
 
-	/* USE THE Pi 0 GPU OFFSET TO GET AN ADDRESS WE CAN READ/WRITE ON THE CPU */
-	ptr = (volatile struct GPU *)(vc - 0x40000000);
-	if (ptr == NULL)
-	{
-		mem_free(handle);
-		mem_unlock(handle);
-		qpu_enable(0);
-		panic("Failed to convert handle to GPU bus address");
-	}
+    ptr->handle = handle;
+    ptr->mail[0] = vc + offsetof(struct GPU, code);
+    ptr->mail[1] = vc + offsetof(struct GPU, unif);
 
-	/* INITIALIZE STRUCT QPU FIELDS*/
-	ptr->handle = handle;
-	ptr->mail[0] = GPU_BASE + (uint32_t)&ptr->code;
-	ptr->mail[1] = GPU_BASE + (uint32_t)&ptr->unif;
-
-	*gpu = ptr;
-	return 0;  // Return success
+    *gpu = ptr;
+    return;
 }
 
 uint32_t gpu_execute(volatile struct GPU *gpu)

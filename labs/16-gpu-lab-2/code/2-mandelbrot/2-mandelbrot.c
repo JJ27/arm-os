@@ -38,7 +38,6 @@ void notmain(void)
 	printk("DONE!\n");
 	int gpu_time = end_time - start_time;
 
-
 	// CPU execution
 	printk("Running code on CPU...\n");
 	uint32_t output_cmp[2 * RESOLUTION][2 * RESOLUTION];
@@ -83,107 +82,50 @@ void notmain(void)
 
 	printk("Speedup: %dx\n", cpu_time / gpu_time);
 
-	// Debug: Print sample values from different parts of the CPU output
-	printk("\nSample CPU output values (top-left):\n");
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			printk("%d ", output_cmp[i][j]);
-		}
-		printk("\n");
-	}
-
-	printk("\nSample CPU output values (center):\n");
-	for (int i = RESOLUTION-2; i < RESOLUTION+3; i++) {
-		for (int j = RESOLUTION-2; j < RESOLUTION+3; j++) {
-			printk("%d ", output_cmp[i][j]);
-		}
-		printk("\n");
-	}
-
-	printk("\nSample CPU output values (bottom-right):\n");
-	for (int i = 2*RESOLUTION-5; i < 2*RESOLUTION; i++) {
-		for (int j = 2*RESOLUTION-5; j < 2*RESOLUTION; j++) {
-			printk("%d ", output_cmp[i][j]);
-		}
-		printk("\n");
-	}
-
 	printk("%d\n", output_cmp[0][0]);
-	unsigned char GPU_OUT[2*RESOLUTION][2*RESOLUTION];
-	for (int i=0; i<2*RESOLUTION; i++) {
-		for (int j=0; j<2*RESOLUTION; j++) {
-			// Convert 1/0 to 255/0 for PGM format
-			GPU_OUT[i][j] = gpu->output[i][j] * 255;
+	unsigned char GPU_OUT[2 * RESOLUTION][2 * RESOLUTION];
+	for (int i = 0; i < 2 * RESOLUTION; i++)
+	{
+		for (int j = 0; j < 2 * RESOLUTION; j++)
+		{
+			if (gpu->output[i][j] > 0)
+			{
+				GPU_OUT[i][j] = 255;
+			}
+			else
+			{
+				GPU_OUT[i][j] = 0;
+			}
 		}
 	}
 
-	// Debug: Print sample values from different parts of the final output
-	printk("\nSample GPU_OUT values (top-left):\n");
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			printk("%d ", GPU_OUT[i][j]);
-		}
-		printk("\n");
-	}
-
-	printk("\nSample GPU_OUT values (center):\n");
-	for (int i = RESOLUTION-2; i < RESOLUTION+3; i++) {
-		for (int j = RESOLUTION-2; j < RESOLUTION+3; j++) {
-			printk("%d ", GPU_OUT[i][j]);
-		}
-		printk("\n");
-	}
-
-	printk("\nSample GPU_OUT values (bottom-right):\n");
-	for (int i = 2*RESOLUTION-5; i < 2*RESOLUTION; i++) {
-		for (int j = 2*RESOLUTION-5; j < 2*RESOLUTION; j++) {
-			printk("%d ", GPU_OUT[i][j]);
-		}
-		printk("\n");
-	}
-
-	// Print debug values from VPM
-	for (int i = 0; i < NUM_QPUS; i++) {
-		printk("Debug values for QPU %d:\n", i);
-		// Read debug values from the first row of output
-		float y_coord = *((float*)&gpu->output[i][0]);
-		float x_coord = *((float*)&gpu->output[i][1]);
-		float div_check = *((float*)&gpu->output[i][2]);
-		int iter_count = gpu->output[i][3];
-		printk("y-coordinate: %f\n", y_coord);
-		printk("x-coordinate: %f\n", x_coord);
-		printk("divergence check: %f\n", div_check);
-		printk("iterations used: %d\n", iter_count);
-		printk("\n");
-	}
-
-	kmalloc_init(8*FAT32_HEAP_MB);
-  	pi_sd_init();
+	// Use fat32 to write the completed image out to disk.
+	kmalloc_init(8 * FAT32_HEAP_MB);
+	pi_sd_init();
 
 	mbr_t *mbr = mbr_read();
 
-  	mbr_partition_ent_t partition;
-  	memcpy(&partition, mbr->part_tab1, sizeof(mbr_partition_ent_t));
-  	assert(mbr_part_is_fat32(partition.part_type));
+	mbr_partition_ent_t partition;
+	memcpy(&partition, mbr->part_tab1, sizeof(mbr_partition_ent_t));
+	assert(mbr_part_is_fat32(partition.part_type));
 
-  	fat32_fs_t fs = fat32_mk(&partition);
+	fat32_fs_t fs = fat32_mk(&partition);
 
-  	pi_dirent_t root = fat32_get_root(&fs);
+	pi_dirent_t root = fat32_get_root(&fs);
 
-	char *hello_name = "NEW.PGM";
+	char *hello_name = "OOUTPUT.PGM";
 	fat32_delete(&fs, &root, hello_name);
 	fat32_create(&fs, &root, hello_name, 0);
 	trace("CREATED\n");
-  	int size;
-	char *data = buildPGM(&size, 2*RESOLUTION, 2*RESOLUTION, GPU_OUT);
-  	pi_file_t hello = (pi_file_t) {
-    		.data = data,
-    		.n_data = size,
-    		.n_alloc = size,
-  	};
+	int size;
+	char *data = buildPGM(&size, 2 * RESOLUTION, 2 * RESOLUTION, GPU_OUT);
+	pi_file_t hello = (pi_file_t){
+		.data = data,
+		.n_data = size,
+		.n_alloc = size,
+	};
 
-  	fat32_write(&fs, &root, hello_name, &hello);
-
+	fat32_write(&fs, &root, hello_name, &hello);
 
 	gpu_release(gpu);
 }
