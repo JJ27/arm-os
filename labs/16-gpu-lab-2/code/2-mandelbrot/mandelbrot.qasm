@@ -23,16 +23,22 @@ mul24 ra12, r1, r2      # row_base_address = i * bytes_per_row
 
 itof r1, ra10           # (float) i
 
-# TODO: Use r1 (i) to determine the float y value you'll compute (see CPU example)
+# y = -1.0 + ((float)i * (1/RESOLUTION))
+fmul r1, r1, ra1        # r1 = i * recip
+ldi r2, 0xbf800000      # -1.0f
+fadd rb9, r1, r2        # rb9 holds y
 
 # rb9 = y, rb8 = x
 
 :column_loop
 
-    # TODO: Use j_base and the elem_num register to determine the float x value you'll compute
-    # Recall that we have a 16-wide vector, and ra11 (j_base) holds the leftmost col index in the row.
-    # Use j_base and the elem_num register to figure out the exact j in the output array, then follow the 
-    # CPU example to determine the corresponding float x example
+    # Compute x for each SIMD lane
+    mov r1, elem_num         # r1 = lane index 0..15
+    add r1, r1, ra11         # j = j_base + lane_index
+    itof r1, r1              # convert j to float
+    fmul r1, r1, ra1         # j * recip
+    ldi r2, 0xbf800000       # -1.0f
+    fadd rb8, r1, r2         # rb8 holds x
 	
 
     # Initialize u, v, u2, v2 to 0 (all floats)
@@ -48,17 +54,28 @@ itof r1, ra10           # (float) i
 
 :inner_loop
 
-    # TODO: MODEL THE CPU EXAMPLE TO UPDATE U,V, U2, V2 correctly
-    
-    # TODO: CHECK FOR DIVERGENCE (u^2+v^2>4), AND USE CONDITION CODE
-   
-    # ADD SOME INSTRUCTION THAT SET FLAGS IF DIVERGED
+    # Update v = 2*u*v + y
+    fmul r1, rb0, rb1          # u * v
+    fadd r1, r1, r1            # 2*u*v
+    fadd rb1, r1, rb9          # v = 2*u*v + y
 
-    # TODO: ADD THE CONDITION CODE THAT MATCHES YOUR INSTRUCTION
-    mov.<condition for diverged> rb7, 1
+    # Update u = u2 - v2 + x
+    fsub rb0, rb2, rb3         # u2 - v2
+    fadd rb0, rb0, rb8         # u = u2 - v2 + x
+
+    # Recompute u2 and v2
+    fmul rb2, rb0, rb0         # u2 = u*u
+    fmul rb3, rb1, rb1         # v2 = v*v
+
+    # Check for divergence: u2 + v2 > 4
+    fadd r1, rb2, rb3
+    ldi r2, 0x40800000         # 4.0f
+    fsub.setf r1, r2, r1       # set N if (4 - (u2+v2)) < 0
+
+    mov.ifn rb7, 1             # mark divergence
 
     # IF ALL LANES HAVE DIVERGED, WE CAN ESCAPE THE LOOP
-    brr.all<condition for diverged> -, :exit
+    brr.alln -, :exit
     nop
     nop
     nop
