@@ -49,14 +49,14 @@ void verify_elf(elf32_header *e_header) {
 //   - Zero-initialize the .bss section
 // Refer to 1-4, 1-9, 1-10, and 1-13
 void bss_zero_init(elf32_header *e_header) {
-    // Get the section header table
-    elf32_sheader *e_sheaders = (elf32_sheader *)((char *)e_header + e_header->e_shoff);
+    // section header table
+    elf32_sheader *e_sheaders = (elf32_sheader *)((char *)e_header->e_shoff);
     
-    // Iterate through section headers to find .bss section
+    // Find .bss section
     for (int i = 0; i < e_header->e_shnum; i++) {
-        // .bss section has type SHT_NOBITS
+
         if (e_sheaders[i].sh_type == SHT_NOBITS) {
-            char *bss_start = (char *)e_sheaders[i].sh_addr;
+            char *bss_start = (char *)e_sheaders[i].sh_offset;
             char *bss_end = bss_start + e_sheaders[i].sh_size;
             memset(bss_start, 0, bss_end - bss_start);
             printk("[MY-ELF] BSS section zero-initialized (%x - %x)\n", bss_start, bss_end);

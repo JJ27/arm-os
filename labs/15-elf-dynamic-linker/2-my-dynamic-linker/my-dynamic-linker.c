@@ -19,16 +19,38 @@ void get_dynamic_sections(my_elf32 *e) {
     e->e_pltgot = NULL;
     e->e_reldyn = NULL;
 
-    // Refer to 1-10, 2-11, 2-12, and 2-13
-    // Use the `d_tag` field to identify these sections in the dynamic section.
-    // The section addresses are stored in the `d_un.d_ptr` field.
-    todo("Locate .hash, .dynsym, .dynstr, .pltgot, and .rel.dyn sections through the .dynamic section");
-    // for (int i = 0; i < ???; i++) {
-    //     // Dynamic section found. Use this section to read .hash, .dynsym, .dynstr sections
-    //     if (e_sheaders[i].sh_type == SHT_DYNAMIC) {
-    //         ???
-    //     }
-    // }
+    for (int i = 0; i < e_header->e_shnum; i++) {
+        if (e_sheaders[i].sh_type == SHT_DYNAMIC) {
+            elf32_dynamic *dyn = (elf32_dynamic *)(elf32_base + e_sheaders[i].sh_offset);
+            
+            while (dyn[e->n_dynamics].d_tag != DT_NULL)
+                e->n_dynamics++;
+            
+            e->e_dynamics = dyn;
+            
+            // dynamic entries to find other sections
+            for (int j = 0; j < e->n_dynamics; j++) {
+                switch (dyn[j].d_tag) {
+                    case DT_HASH:
+                        e->e_hash = (uint32_t *)(elf32_base + dyn[j].d_un.d_ptr);
+                        break;
+                    case DT_SYMTAB:
+                        e->e_dynsym = (elf32_sym *)(elf32_base + dyn[j].d_un.d_ptr);
+                        break;
+                    case DT_STRTAB:
+                        e->e_dynstr = (char *)(elf32_base + dyn[j].d_un.d_ptr);
+                        break;
+                    case DT_PLTGOT:
+                        e->e_pltgot = (uint32_t *)(elf32_base + dyn[j].d_un.d_ptr);
+                        break;
+                    case DT_JMPREL:
+                        e->e_reldyn = (elf32_rel *)(elf32_base + dyn[j].d_un.d_ptr);
+                        break;
+                }
+            }
+            break;
+        }
+    }
 
     if (e->e_hash == NULL || e->e_dynsym == NULL || e->e_dynstr == NULL || e->e_pltgot == NULL || e->e_reldyn == NULL)
         panic("[MY-DL] Couldn't find .hash, .dynsym, .dynstr, .pltgot, or .rel.dyn section\n");
@@ -91,11 +113,26 @@ uint32_t resolve_symbol(my_elf32 *e, char *symbol_name) {
     char *elf32_base = (char *)e->e_header;
     uint32_t symbol_addr = 0;
     
-    // Refer to 1-17 for the symbol entry format and 1-16 for the string table format
-    // Go through every entry in .dynsym section, retrieve its index in the .dynstr section, 
-    // get the symbol name, compare it with symbol_name, and use st_value to retrieve its address
-    todo("Find the symbol using the .dynsym and .dynstr sections and fill in the symbol_addr");
-    // No more code hint!
+    // # symbols from hash table
+    uint32_t nbuckets = e->e_hash[0];
+    uint32_t nchains = e->e_hash[1];
+    
+    // all symbols in the dynamic symbol table
+    for (int i = 0; i < nchains; i++) {
+        // symbol name
+        char *sym_name = e->e_dynstr + e->e_dynsym[i].st_name;
+        
+        // find symbol
+        if (strcmp(sym_name, symbol_name) == 0) {
+            // Found the symbol!
+            symbol_addr = e->e_dynsym[i].st_value;
+            if (e->e_dynsym[i].st_shndx != SHN_UNDEF) {
+                // add base addr
+                symbol_addr += (uint32_t)elf32_base;
+            }
+            break;
+        }
+    }
 
     if (symbol_addr == 0)
         panic("[MY-DL] Couldn't find symbol: %s\n", symbol_name);

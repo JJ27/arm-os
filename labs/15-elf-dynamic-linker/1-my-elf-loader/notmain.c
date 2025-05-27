@@ -10,7 +10,7 @@
 #include "my-elf-loader.h"
 
 // Change this to the filename of the statically linked ELF file you want to load
-static char *exec_filename = "0-STATIC.ELF";
+static char *exec_filename = "2-STATIC.ELF";
 static char *exec_base = (char *)0x0;  // Must load the ELF file to 0x0, as it is position-dependent
 
 void notmain() {
